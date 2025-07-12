@@ -36,10 +36,11 @@ This project applies psychometric methods to analyze a library engagement survey
 
 ## 📊 Sample Visuals
 
-![Correlation Matrix](visuals/correlation-matrix.png)
+![Parallel Analysis](<img width="1042" height="537" alt="mile stony" src="https://github.com/user-attachments/assets/37713478-fbfa-44f3-8c27-44c2f59e1987" />)
 ![Factor Loadings](visuals/factor-loadings.png)
 
 ---
+
 
 ## 📝 Notes
 
