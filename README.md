@@ -37,7 +37,8 @@ This project applies psychometric methods to analyze a library engagement survey
 ## 📊 Sample Visuals
 
 ![Parallel Analysis](mile-stony.png)
-![Factor Loadings](visuals/factor-loadings.png)
+![PCA](scree-stony.png)
+![School Plots](stony-plots.png)
 
 ---
 
