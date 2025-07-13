@@ -1,0 +1,864 @@
+---
+title: "Psychometric Analysis of School Library Survey"
+author: "N. Talreja"
+date: "September 8 2024"
+format:
+  html:
+    df-print: paged
+    css: "styles.css"
+    embed-resources: true
+    self-contained-math: true
+categories:
+  - Analysis
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(readxl)
+library(psych)
+library(tidyverse)
+library(kableExtra)
+library(RcmdrMisc)
+library(ggplot2)
+library(grid)
+library(knitr)
+library(dplyr)
+library(gridExtra)
+```
+
+
+# Loading the dataset
+
+Here, I load the data and produce some descriptive statistics about the student sample.
+
+The code below just reads in the main data file which is unclean and has multiple sheets according to the different schools.
+
+```{r}
+#filepath <- "File Path"
+file_path <- file.choose()
+dat <- read_xlsx(file_path)
+head(dat)
+
+```
+
+## Laoding each sheet separately
+
+Here, I load each sheet separately so that we can look at each school separately and clean them by changing the "Grade" column to numeric and remove the school id column. I will remove the NAs later on in the process because we want a count of the NAs before removing them.
+
+```{r}
+
+alldata <- read_excel(file_path, sheet = "alldata")  # these are the teacher responses, as such the questions in this survey are different than the rest of the sheets as those are student surveys from different schools
+alldata <- alldata[, -1]
+
+green_meadows <- read_excel(file_path, sheet = "Green Meadows")
+mile_tree <- read_excel(file_path, sheet = "Mile Tree")
+soule_road <- read_excel(file_path, sheet = "Soule Road")
+stony_hill <- read_excel(file_path, sheet = "Stony Hill")
+wilbraham_middle <- read_excel(file_path, sheet = "Wilbraham Middle")
+mrh <- read_excel(file_path, sheet = "Minnechaug Regional High")
+
+green_meadows$Grade <- as.numeric(as.character(green_meadows$Grade))
+green_meadows <- green_meadows[, -1]
+mile_tree$Grade <- as.numeric(as.character(mile_tree$Grade))
+mile_tree <- mile_tree[, -1]
+soule_road$Grade <- as.numeric(as.character(soule_road$Grade))
+soule_road <- soule_road[, -1]
+stony_hill$Grade <- as.numeric(as.character(stony_hill$Grade))
+stony_hill <- stony_hill[, -1]
+wilbraham_middle$Grade <- as.numeric(as.character(wilbraham_middle$Grade))
+wilbraham_middle <- wilbraham_middle[, -1]
+mrh$Grade <- as.numeric(as.character(mrh$Grade))
+mrh <- mrh[, -1]
+
+```
+
+### Dimensions of each School
+Getting the dimensions of each school.
+
+```{r}
+
+all_dim <- dim(alldata)
+green_dim <- dim(green_meadows)
+mile_dim <- dim(mile_tree)
+soule_dim <- dim(soule_road)
+stony_dim <- dim(stony_hill)
+wilbraham_dim <- dim(wilbraham_middle)
+mrh_dim <- dim(mrh)
+
+all_dim
+green_dim
+mile_dim
+soule_dim
+stony_dim
+wilbraham_dim
+mrh_dim
+
+```
+
+
+
+### Count of each grade and NAs
+
+First, I describe the sample in terms of grade level. I then filter to 100% complete surveys with grade information available and re-describe the reduced sample.
+
+
+```{r}
+
+mile_tree %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+green_meadows %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+stony_hill %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+soule_road %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+wilbraham_middle %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+mrh %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+
+```
+
+Now, I reduce to students who completed the survey and whose grade is included. By dropping all the NAs,we clean the data completely.
+
+```{r, include=FALSE, echo=FALSE}
+
+mile_tree.r <- mile_tree %>% drop_na()
+green_meadows.r <- green_meadows %>% drop_na()
+stony_hill.r <- stony_hill %>% drop_na()
+soule_road.r <- soule_road %>% drop_na()
+wilbraham_middle.r <- wilbraham_middle %>% drop_na()
+mrh.r <- mrh %>% drop_na()
+
+```
+
+
+Below is a summary of this reduced sample by grade and school. The sample is well-balanced across grades for each school.
+
+```{r}
+
+mile_tree.r %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+green_meadows.r %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+stony_hill.r %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+soule_road.r %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+wilbraham_middle.r %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+mrh.r %>% group_by(Grade) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+
+
+```
+
+
+## Exploratory Factor Analysis
+
+### Correlation Analysis
+
+#### Mile Tree School
+
+To start off, we are going to look at only Mile Tree School and then later on we will look at all the schools similarly. 
+
+I start off with calculating the frequency of each response in the Likert scale questions.
+
+```{r}
+
+# Calculating the frequency of each response in the Likert scale questions
+
+table(mile_tree.r$`I like visiting the library.`)
+table(mile_tree.r$`I like using the library for research.`)
+table(mile_tree.r$`I like picking out new books at the library.`)
+table(mile_tree.r$`The school librarian helps me when I go to the library.`)
+
+```
+
+
+Now I will summarize the survey responses by grade, providing the average (mean) scores for each survey question across different grades. This allows me to easily compare how different grades responded to the survey questions.
+
+``` {r}
+group_summary_mile <- mile_tree.r %>%
+  group_by(Grade) %>%
+  summarise(
+    mean_visiting = mean(`I like visiting the library.`, na.rm = TRUE),
+    mean_research = mean(`I like using the library for research.`, na.rm = TRUE),
+    mean_books = mean(`I like picking out new books at the library.`, na.rm = TRUE),
+    mean_help = mean(`The school librarian helps me when I go to the library.`, na.rm = TRUE)
+  )
+group_summary_mile
+group_summary_green <- green_meadows.r %>%
+  group_by(Grade) %>%
+  summarise(
+    mean_visiting = mean(`I like visiting the library.`, na.rm = TRUE),
+    mean_research = mean(`I like using the library for research.`, na.rm = TRUE),
+    mean_books = mean(`I like picking out new books at the library.`, na.rm = TRUE),
+    mean_help = mean(`The school librarian helps me when I go to the library.`, na.rm = TRUE)
+  )
+group_summary_green
+
+group_summary_soule <- soule_road.r %>%
+  group_by(Grade) %>%
+  summarise(
+    mean_visits = mean(`How important to you is visiting a school library?`, na.rm = TRUE)
+  )
+group_summary_soule
+
+group_summary_stony <- stony_hill.r %>%
+  group_by(Grade) %>%
+  summarise(
+    mean_visiting = mean(`I like visiting the library.`, na.rm = TRUE),
+    mean_research = mean(`I like using the library for research.`, na.rm = TRUE),
+    mean_books = mean(`I like picking out new books at the library.`, na.rm = TRUE),
+    mean_help = mean(`The school librarian helps me when I go to the library.`, na.rm = TRUE)
+  )
+group_summary_stony
+
+group_summary_wilbraham <- wilbraham_middle.r %>%
+  group_by(Grade) %>%
+  summarise(
+    mean_visits = mean(`How important to you is visiting a school library?`, na.rm = TRUE),
+    mean_guide = mean(`How important to you is having a school librarian to help guide you with research and locating books?`, na.rm = TRUE),
+    mean_resources = mean(`When researching, how important is it to you to have library electronic resources and books?`, na.rm = TRUE)
+  )
+group_summary_wilbraham
+
+group_summary_mrh <- mrh.r %>%
+  group_by(Grade) %>%
+  summarise(
+    mean_visits = mean(`How important to you is visiting a school library?`, na.rm = TRUE),
+    mean_guide = mean(`How important to you is having a school librarian to help guide you with research and locating books?`, na.rm = TRUE),
+    mean_resources = mean(`When researching, how important is it to you to have library electronic resources and books?`, na.rm = TRUE)
+  )
+group_summary_mrh
+
+```
+
+
+Here, I create the correlation matrix for the data and also create an FA model. The correlation matrix shows how each variable is related to every other variable, which is crucial for factor analysis. The FA model helps identify the underlying factors that explain the correlations among the variables.
+
+```{r}
+
+# Calculate item-total correlations
+item_stats_mile <- psych::alpha(mile_tree.r)
+item_stats_mile$item.stats %>%
+  select(mean, sd, r.drop) %>%
+  kable(col.names = c("Mean", "SD", "Item-total"), digits = 2) %>%
+  kable_styling()
+
+#item_stats_green <- psych::alpha(green_meadows.r)
+#item_stats_green$item.stats %>%
+#  select(mean, sd, r.drop) %>%
+#  kable(col.names = c("Mean", "SD", "Item-total"), digits = 2) %>%
+#  kable_styling()
+
+item_stats_soule <- psych::alpha(soule_road.r)
+item_stats_soule$item.stats %>%
+  select(mean, sd, r.drop) %>%
+  kable(col.names = c("Mean", "SD", "Item-total"), digits = 2) %>%
+  kable_styling()
+
+item_stats_stony <- psych::alpha(stony_hill.r)
+item_stats_stony$item.stats %>%
+  select(mean, sd, r.drop) %>%
+  kable(col.names = c("Mean", "SD", "Item-total"), digits = 2) %>%
+  kable_styling()
+
+item_stats_wilbraham <- psych::alpha(wilbraham_middle.r)
+item_stats_wilbraham$item.stats %>%
+  select(mean, sd, r.drop) %>%
+  kable(col.names = c("Mean", "SD", "Item-total"), digits = 2) %>%
+  kable_styling()
+
+item_stats_mrh <- psych::alpha(mrh.r)
+item_stats_mrh$item.stats %>%
+  select(mean, sd, r.drop) %>%
+  kable(col.names = c("Mean", "SD", "Item-total"), digits = 2) %>%
+  kable_styling()
+
+# I already calculated the Chronbach's Alpha above. So let's print out the results for each school
+
+cat("Cronbach's Alpha for Mile Tree:", item_stats_mile$total$raw_alpha, "\n")
+cat("Cronbach's Alpha for Soule Road:", item_stats_soule$total$raw_alpha, "\n")
+cat("Cronbach's Alpha for Stony Hill:", item_stats_stony$total$raw_alpha, "\n")
+cat("Cronbach's Alpha for Wilbraham Middle:", item_stats_wilbraham$total$raw_alpha, "\n")
+cat("Cronbach's Alpha for Minnechaug Regional High:", item_stats_mrh$total$raw_alpha, "\n")
+
+
+
+```
+
+### Reliability
+
+```{r}
+
+# Calculate reliability coefficients
+reliability <- psych::alpha(mile_tree.r)
+reliability
+
+```
+
+### KMO and Bartlett Tests
+
+I also conducted KMO test and Bartlett test. The KMO test checks if the correlations between pairs of variables can be explained by other variables. The Bartlett test checks whether the correlation matrix is significantly different from an identity matrix, indicating whether the variables are related enough for factor analysis.
+
+``` {r}
+
+corr_matrix <- cor(mile_tree.r)
+print(corr_matrix)
+ 
+kmo_result <- KMO(mile_tree.r)
+print(kmo_result)
+
+bartlett_test <- cortest.bartlett(corr_matrix, n = nrow(mile_tree.r))
+print(bartlett_test)
+
+fa_model <- fa(mile_tree.r, nfactors = 3, rotate = "varimax", fm = "ml")
+print(fa_model)
+
+
+```
+
+
+
+## Visualizing the data
+
+Now I wanted to create some plots to be able to easily visualise the data. I created histograms since those show us the data most clearly.
+
+### Mile Tree School
+
+```{r}
+
+ggplot(mile_tree.r, aes(x = `I like visiting the library.`)) +
+  geom_histogram(binwidth = 1, fill = "lightblue", color = "black") +
+  labs(title = "Distribution of 'I like visiting the library'")
+
+ggplot(mile_tree.r, aes(x = `I like using the library for research.`)) +
+  geom_histogram(binwidth = 1, fill = "lightgreen", color = "black") +
+  labs(title = "Distribution of 'I like using the library for research.'")
+
+ggplot(mile_tree.r, aes(x = `I like picking out new books at the library.`)) +
+  geom_histogram(binwidth = 1, fill = "pink", color = "black") +
+  labs(title = "Distribution of 'I like picking out new books at the library.'")
+
+ggplot(mile_tree.r, aes(x = `The school librarian helps me when I go to the library.`)) +
+  geom_histogram(binwidth = 1, fill = "lavender", color = "black") +
+  labs(title = "Distribution of 'The school librarian helps me when I go to the library.'")
+
+
+```
+
+Here, I conducted the Grade 3-4 analysis as well as classical item statistics.
+
+```{r}
+
+# Mile Tree
+
+ir <- mile_tree.r %>% select(-Grade)
+
+ir$`I like visiting the library.` <- ifelse(ir$`I like visiting the library.` == 1, 0, ifelse(ir$`I like visiting the library.` == 3, 1, ifelse(ir$`I like visiting the library.` == 5, 2, NA)))
+
+ir$`I like using the library for research.` <- ifelse(ir$`I like using the library for research.` == 1, 0, ifelse(ir$`I like using the library for research.` == 3, 1, ifelse(ir$`I like using the library for research.` == 5, 2, NA)))
+
+ir$`I like picking out new books at the library.` <- ifelse(ir$`I like picking out new books at the library.` == 1, 0, ifelse(ir$`I like picking out new books at the library.` == 3, 1, ifelse(ir$`I like picking out new books at the library.` == 5, 2, NA)))
+
+ir$`The school librarian helps me when I go to the library.` <- ifelse(ir$`The school librarian helps me when I go to the library.` == 1, 0, ifelse(ir$`The school librarian helps me when I go to the library.` == 3, 1, ifelse(ir$`The school librarian helps me when I go to the library.` == 5, 2, NA)))
+
+```
+
+Here, I conduct parallel analysis.
+
+```{r}
+
+fa.parallel(ir, n.iter = 10, fm = "pa", fa = "fa", cor = "poly")
+
+```
+
+Now I am going to rename the columns to match them with the previous year's report to update the new report.
+
+
+```{r}
+
+# renaming the columns
+green_meadows_new <- green_meadows %>%
+  rename(
+    `s-libr-q1-gm` = `How important to you is visiting a school library?`,
+    `s-libp-es1-gm` = `I like visiting the library.`,
+    `s-libp-es2-gm` = `I like using the library for research.`,
+    `s-libp-es3-gm` = `I like picking out new books at the library.`,
+    `s-libp-es4-gm` = `The school librarian helps me when I go to the library.`
+  )
+
+mile_tree_new <- mile_tree %>%
+  rename(
+    `s-libp-es1-mt` = `I like visiting the library.`,
+    `s-libp-es2-mt` = `I like using the library for research.`,
+    `s-libp-es3-mt` = `I like picking out new books at the library.`,
+    `s-libp-es4-mt` = `The school librarian helps me when I go to the library.`
+  )
+
+soule_road_new <- soule_road %>%
+  rename(
+    `s-libr-q1-sr` = `How important to you is visiting a school library?`,
+    )
+
+stony_hill_new <- stony_hill %>%
+  rename(
+    `s-libp-es1-sh` = `I like visiting the library.`,
+    `s-libp-es2-sh` = `I like using the library for research.`,
+    `s-libp-es3-sh` = `I like picking out new books at the library.`,
+    `s-libp-es4-sh` = `The school librarian helps me when I go to the library.`
+  )
+
+wilbraham_middle_new <- wilbraham_middle %>%
+  rename(
+    `s-libr-q1-wm` = `How important to you is visiting a school library?`,
+    `s-libr-q2-wm` = `How important to you is having a school librarian to help guide you with research and locating books?`,
+    `s-libr-q3-wm` = `When researching, how important is it to you to have library electronic resources and books?`
+  )
+
+mrh_new <- mrh %>%
+  rename(
+    `s-libr-q1-mrh` = `How important to you is visiting a school library?`,
+    `s-libr-q2-mrh` = `How important to you is having a school librarian to help guide you with research and locating books?`,
+    `s-libr-q3-mrh` = `When researching, how important is it to you to have library electronic resources and books?`
+  )
+
+
+# combing all the school data
+
+school_data <- green_meadows_new %>%
+  full_join(mile_tree_new, by = "Grade") %>%
+  full_join(soule_road_new, by = "Grade") %>%
+  full_join(stony_hill_new, by = "Grade") %>%
+  full_join(wilbraham_middle_new, by = "Grade") %>%
+  full_join(mrh_new, by = "Grade")
+
+colnames(school_data)
+
+```
+
+```{r}
+
+# Select all columns except "Grade"
+school_data_selected <- school_data %>% select(-Grade)
+
+# Recode specific columns using ifelse
+school_data_selected <- school_data_selected %>%
+  mutate(
+    `s-libp-es1-gm` = ifelse(`s-libp-es1-gm` == 1, 0, ifelse(`s-libp-es1-gm` == 3, 1, ifelse(`s-libp-es1-gm` == 5, 2, NA))),
+    `s-libp-es2-gm` = ifelse(`s-libp-es2-gm` == 1, 0, ifelse(`s-libp-es2-gm` == 3, 1, ifelse(`s-libp-es2-gm` == 5, 2, NA))),
+    `s-libp-es3-gm` = ifelse(`s-libp-es3-gm` == 1, 0, ifelse(`s-libp-es3-gm` == 3, 1, ifelse(`s-libp-es3-gm` == 5, 2, NA))),
+    `s-libp-es4-gm` = ifelse(`s-libp-es4-gm` == 1, 0, ifelse(`s-libp-es4-gm` == 3, 1, ifelse(`s-libp-es4-gm` == 5, 2, NA))),
+    `s-libp-es1-mt` = ifelse(`s-libp-es1-mt` == 1, 0, ifelse(`s-libp-es1-mt` == 3, 1, ifelse(`s-libp-es1-mt` == 5, 2, NA))),
+    `s-libp-es2-mt` = ifelse(`s-libp-es2-mt` == 1, 0, ifelse(`s-libp-es2-mt` == 3, 1, ifelse(`s-libp-es2-mt` == 5, 2, NA))),
+    `s-libp-es3-mt` = ifelse(`s-libp-es3-mt` == 1, 0, ifelse(`s-libp-es3-mt` == 3, 1, ifelse(`s-libp-es3-mt` == 5, 2, NA))),
+    `s-libp-es4-mt` = ifelse(`s-libp-es4-mt` == 1, 0, ifelse(`s-libp-es4-mt` == 3, 1, ifelse(`s-libp-es4-mt` == 5, 2, NA))),
+    `s-libp-es1-sh` = ifelse(`s-libp-es1-sh` == 1, 0, ifelse(`s-libp-es1-sh` == 3, 1, ifelse(`s-libp-es1-sh` == 5, 2, NA))),
+    `s-libp-es2-sh` = ifelse(`s-libp-es2-sh` == 1, 0, ifelse(`s-libp-es2-sh` == 3, 1, ifelse(`s-libp-es2-sh` == 5, 2, NA))),
+    `s-libp-es3-sh` = ifelse(`s-libp-es3-sh` == 1, 0, ifelse(`s-libp-es3-sh` == 3, 1, ifelse(`s-libp-es3-sh` == 5, 2, NA))),
+    `s-libp-es4-sh` = ifelse(`s-libp-es4-sh` == 1, 0, ifelse(`s-libp-es4-sh` == 3, 1, ifelse(`s-libp-es4-sh` == 5, 2, NA))),
+    `s-libr-q1-wm` = ifelse(`s-libr-q1-wm` == 1, 0, ifelse(`s-libr-q1-wm` == 3, 1, ifelse(`s-libr-q1-wm` == 5, 2, NA))),
+    `s-libr-q2-wm` = ifelse(`s-libr-q2-wm` == 1, 0, ifelse(`s-libr-q2-wm` == 3, 1, ifelse(`s-libr-q2-wm` == 5, 2, NA))),
+    `s-libr-q3-wm` = ifelse(`s-libr-q3-wm` == 1, 0, ifelse(`s-libr-q3-wm` == 3, 1, ifelse(`s-libr-q3-wm` == 5, 2, NA))),
+    `s-libr-q1-mrh` = ifelse(`s-libr-q1-mrh` == 1, 0, ifelse(`s-libr-q1-mrh` == 3, 1, ifelse(`s-libr-q1-mrh` == 5, 2, NA))),
+    `s-libr-q2-mrh` = ifelse(`s-libr-q2-mrh` == 1, 0, ifelse(`s-libr-q2-mrh` == 3, 1, ifelse(`s-libr-q2-mrh` == 5, 2, NA))),
+    `s-libr-q3-mrh` = ifelse(`s-libr-q3-mrh` == 1, 0, ifelse(`s-libr-q3-mrh` == 3, 1, ifelse(`s-libr-q3-mrh` == 5, 2, NA)))
+  )
+
+
+```
+
+
+### "All Data" Sheet
+
+Let's now look at the "All Data" Sheet from the excel file. It includes the data from teachers from every school.
+
+```{r}
+
+head(alldata)
+
+# let's label each school using the data
+
+alldata <- alldata %>%
+  mutate(
+    schoolname = case_when(
+      `School ID number` == "6800005" ~ "Green Meadows",
+      `School ID number` == "6800025" ~ "Mile Tree",
+      `School ID number` == "6800030" ~ "Soule Road",
+      `School ID number` == "6800050" ~ "Stony Hill",
+      `School ID number` == "6800310" ~ "Wilbraham Middle",
+      `School ID number` == "6800505" ~ "Minnechaug Regional High"
+  )
+  )
+
+head(alldata)
+# unique(alldata$`School ID number`)
+colnames(alldata)
+
+```
+
+So now that we have added the School Names to the file, let's do some analyses.
+
+```{r}
+
+alldata %>% group_by(schoolname) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+
+```
+
+```{r}
+
+# removing all the NAs
+alldata.r <- alldata %>% drop_na()
+alldata.r %>% group_by(schoolname) %>% summarise(n = n()) %>% kable() %>% kable_styling()
+
+# converting the school id number column to numeric
+alldata.r$`School ID number` <- as.numeric(as.character(alldata.r$`School ID number`))
+
+```
+
+```{r}
+
+# Calculating the frequency of each response in the Likert scale questions
+
+table(alldata.r$`Considering your course, how often do your students access the school library?`)
+table(alldata.r$`Considering your course, how often do your students access library research databases?`)
+table(alldata.r$`How often do you collaborate or receive support from a licensed school library teacher?`)
+table(alldata.r$`How important is it to you for your students to have access to library books?`)
+table(alldata.r$`How important is it to you for your students to have access to library research databases?`)
+table(alldata.r$`How important to your practice is that you have access to a licensed school library teacher?`)
+
+
+```
+
+These tables are a bit hard to understand. Let's convert them to proper tables using kable.
+
+```{r}
+
+# Table for: How often do your students access the school library?
+library_access_table <- table(alldata.r$`Considering your course, how often do your students access the school library?`)
+kable(as.data.frame(library_access_table), col.names = c("Scale", "Count"), 
+      caption = "Student Access to the School Library") %>%
+  kable_styling()
+
+# Table for: How often do your students access library research databases?
+database_access_table <- table(alldata.r$`Considering your course, how often do your students access library research databases?`)
+kable(as.data.frame(database_access_table), col.names = c("Scale", "Count"), 
+      caption = "Student Access to Library Research Databases") %>%
+  kable_styling()
+
+# Table for: How often do you collaborate or receive support from a licensed school library teacher?
+collaboration_table <- table(alldata.r$`How often do you collaborate or receive support from a licensed school library teacher?`)
+kable(as.data.frame(collaboration_table), col.names = c("Scale", "Count"), 
+      caption = "Collaboration with Licensed School Library Teacher") %>%
+  kable_styling()
+
+# Table for: How important is it to you for your students to have access to library books?
+importance_books_table <- table(alldata.r$`How important is it to you for your students to have access to library books?`)
+kable(as.data.frame(importance_books_table), col.names = c("Scale", "Count"), 
+      caption = "Importance of Student Access to Library Books") %>%
+  kable_styling()
+
+# Table for: How important is it to you for your students to have access to library research databases?
+importance_databases_table <- table(alldata.r$`How important is it to you for your students to have access to library research databases?`)
+kable(as.data.frame(importance_databases_table), col.names = c("Scale", "Count"), 
+      caption = "Importance of Student Access to Library Research Databases") %>%
+  kable_styling()
+
+# Table for: How important to your practice is that you have access to a licensed school library teacher?
+importance_teacher_table <- table(alldata.r$`How important to your practice is that you have access to a licensed school library teacher?`)
+kable(as.data.frame(importance_teacher_table), col.names = c("Scale", "Count"), 
+      caption = "Importance of Access to a Licensed School Library Teacher") %>%
+  kable_styling()
+
+```
+
+These tables are better but they will be easier understood using plots. Let's try that.
+
+```{r}
+
+# Plot: How often do your students access the school library?
+ggplot(alldata.r, aes(x = `Considering your course, how often do your students access the school library?`)) +
+  geom_histogram(stat = "count", fill = "lightblue", color = "black") +
+  labs(title = "Distribution of 'Student Access to the School Library'", x = "Frequency", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),   # Centers and adjusts title size
+        plot.margin = unit(c(2, 2, 2, 2), "lines"))  # Adjusts the margin on all sides
+
+# Plot: How often do your students access library research databases?
+ggplot(alldata.r, aes(x = `Considering your course, how often do your students access library research databases?`)) +
+  geom_histogram(stat = "count", fill = "lightgreen", color = "black") +
+  labs(title = "Distribution of 'Student Access to Library Research Databases'", x = "Frequency", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        plot.margin = unit(c(2, 2, 2, 2), "lines"))
+
+# Plot: How often do you collaborate or receive support from a licensed school library teacher?
+ggplot(alldata.r, aes(x = `How often do you collaborate or receive support from a licensed school library teacher?`)) +
+  geom_histogram(stat = "count", fill = "lightpink", color = "black") +
+  labs(title = "Distribution of 'Collaboration with Licensed School Library Teacher'", x = "Frequency", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        plot.margin = unit(c(2, 2, 2, 2), "lines"))
+
+# Plot: How important is it to you for your students to have access to library books?
+ggplot(alldata.r, aes(x = `How important is it to you for your students to have access to library books?`)) +
+  geom_histogram(stat = "count", fill = "lightcoral", color = "black") +
+  labs(title = "Distribution of 'Importance of Student Access to Library Books'", x = "Importance Level", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        plot.margin = unit(c(2, 2, 2, 2), "lines"))
+
+# Plot: How important is it to you for your students to have access to library research databases?
+ggplot(alldata.r, aes(x = `How important is it to you for your students to have access to library research databases?`)) +
+  geom_histogram(stat = "count", fill = "lightyellow", color = "black") +
+  labs(title = "Distribution of 'Importance of Student Access to Library Research Databases'", x = "Importance Level", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        plot.margin = unit(c(2, 2, 2, 2), "lines"))
+
+# Plot: How important to your practice is that you have access to a licensed school library teacher?
+ggplot(alldata.r, aes(x = `How important to your practice is that you have access to a licensed school library teacher?`)) +
+  geom_histogram(stat = "count", fill = "lavender", color = "black") +
+  labs(title = "Distribution of 'Importance of Access to a Licensed School Library Teacher'", x = "Importance Level", y = "Count") +
+  theme(plot.title = element_text(hjust = 0.5, size = 14),
+        plot.margin = unit(c(2, 2, 2, 2), "lines"))
+
+
+```
+
+Let's do some more analyses.
+
+```{r}
+
+group_summary_teacher <- alldata.r %>%
+  group_by(schoolname) %>%
+  summarise(
+    mean_access_library = mean(`Considering your course, how often do your students access the school library?`, na.rm = TRUE),
+    mean_access_databases = mean(`Considering your course, how often do your students access library research databases?`, na.rm = TRUE),
+    mean_collaboration = mean(`How often do you collaborate or receive support from a licensed school library teacher?`, na.rm = TRUE),
+    mean_importance_books = mean(`How important is it to you for your students to have access to library books?`, na.rm = TRUE),
+    mean_importance_databases = mean(`How important is it to you for your students to have access to library research databases?`, na.rm = TRUE),
+    mean_importance_teacher = mean(`How important to your practice is that you have access to a licensed school library teacher?`, na.rm = TRUE)
+  )
+group_summary_teacher
+
+
+```
+
+Good, now let's create correlation matrix, conduct kmo test and bartlet test, and create an FA model.
+
+```{r}
+
+# to conduct these tests, I will have to remove the school names since all the fields should be numeric
+
+alldata.r <- alldata.r[, -ncol(alldata.r)]
+alldata.r <- alldata.r[, -1]
+
+corr_matrix_teacher <- cor(alldata.r)
+print(corr_matrix_teacher)
+ 
+kmo_result_teacher <- KMO(alldata.r)
+print(kmo_result_teacher)
+
+bartlett_test_teacher <- cortest.bartlett(corr_matrix_teacher, n = nrow(alldata.r))
+print(bartlett_test_teacher)
+
+fa_model_teacher <- fa(alldata.r, nfactors = 2, rotate = "varimax", fm = "ml")
+print(fa_model_teacher)
+
+```
+
+I'm going to prepare the data for further analysis. I will create duplicates of the data as to avoid modifying the original dataset.
+
+```{r}
+
+mile_tree_p <- mile_tree.r[, -1]
+miletree_data_numeric <- mile_tree_p  # Create a copy to avoid modifying the original
+
+# Convert all columns to numeric (if necessary)
+miletree_data_numeric[] <- lapply(miletree_data_numeric, function(x) {
+  if (is.factor(x)) as.numeric(as.character(x)) else if (is.character(x)) as.numeric(x) else x
+})
+
+# Check structure after conversion
+str(miletree_data_numeric)
+
+
+fa.parallel(miletree_data_numeric, n.iter = 10, fm = "pa", fa = "fa",
+            main = "Mile Tree Parallel Analysis Scree Plot (230 Participants)")
+
+```
+
+```{r}
+
+green_meadow_p <- green_meadows.r[, -1]
+greenmeadow_data_numeric <- green_meadow_p  # Create a copy to avoid modifying the original
+
+# Convert all columns to numeric (if necessary)
+greenmeadow_data_numeric[] <- lapply(greenmeadow_data_numeric, function(x) {
+  if (is.factor(x)) as.numeric(as.character(x)) else if (is.character(x)) as.numeric(x) else x
+})
+
+# Check structure after conversion
+str(greenmeadow_data_numeric)
+
+
+#fa.parallel(greenmeadow_data_numeric, n.iter = 10, fm = "pa", fa = "fa")
+
+## the issue is that there is no data because we remove all the NAs and none of the kids answered all the questions
+
+```
+
+
+```{r}
+
+soule_road_p <- soule_road.r[, -1]
+souleroad_data_numeric <- soule_road  # Create a copy to avoid modifying the original
+
+# Convert all columns to numeric (if necessary)
+souleroad_data_numeric[] <- lapply(souleroad_data_numeric, function(x) {
+  if (is.factor(x)) as.numeric(as.character(x)) else if (is.character(x)) as.numeric(x) else x
+})
+
+# Check structure after conversion
+str(souleroad_data_numeric)
+
+
+fa.parallel(souleroad_data_numeric, n.iter = 10, fm = "pa", fa = "fa",
+            main = "Soule Road Parallel Analysis Scree Plot (303 participants)")
+
+## can't conduct parallel analysis because we only have one question in this school
+
+```
+
+
+```{r}
+
+stony_hill_p <- stony_hill.r[, -1]
+stonyhill_data_numeric <- stony_hill_p  # Create a copy to avoid modifying the original
+
+# Convert all columns to numeric (if necessary)
+stonyhill_data_numeric[] <- lapply(stonyhill_data_numeric, function(x) {
+  if (is.factor(x)) as.numeric(as.character(x)) else if (is.character(x)) as.numeric(x) else x
+})
+
+# Check structure after conversion
+str(stonyhill_data_numeric)
+
+
+fa.parallel(stonyhill_data_numeric, n.iter = 10, fm = "pa", fa = "fa",
+            main = "Stony Hill Parallel Analysis Scree Plot (247 Participants)")
+
+```
+
+
+```{r}
+
+wilbraham_middle_p <- wilbraham_middle.r[, -1]
+wm_data_numeric <- wilbraham_middle_p  # Create a copy to avoid modifying the original
+
+# Convert all columns to numeric (if necessary)
+wm_data_numeric[] <- lapply(wm_data_numeric, function(x) {
+  if (is.factor(x)) as.numeric(as.character(x)) else if (is.character(x)) as.numeric(x) else x
+})
+
+# Check structure after conversion
+str(wm_data_numeric)
+
+
+fa.parallel(wm_data_numeric, n.iter = 10, fm = "pa", fa = "fa",
+            main = "Wilbraham Middle Parallel Analysis Scree Plot (519 Participants)")
+
+```
+
+I am combing schools with the same questions to conduct some analyses based on questions instead of schools.
+
+```{r}
+
+mrh_p <- mrh.r[, -1]
+mrh_data_numeric <- mrh_p  # Create a copy to avoid modifying the original
+
+# Convert all columns to numeric (if necessary)
+mrh_data_numeric[] <- lapply(mrh_data_numeric, function(x) {
+  if (is.factor(x)) as.numeric(as.character(x)) else if (is.character(x)) as.numeric(x) else x
+})
+
+# Check structure after conversion
+str(mrh_data_numeric)
+
+
+fa.parallel(mrh_data_numeric, n.iter = 10, fm = "pa", fa = "fa",
+            main = "MRH Parallel Analysis Scree Plot (768 Participants)")
+
+```
+
+
+```{r}
+
+mile_stony <- rbind(miletree_data_numeric, stonyhill_data_numeric)
+  
+
+fa.parallel(mile_stony, n.iter = 10, fm = "pa", fa = "fa",
+            main = "Mile and Stony Parallel Analysis Scree Plot (477 Participants)")
+
+```
+
+
+```{r}
+
+wilbraham_mrh <- rbind(wm_data_numeric, mrh_data_numeric)
+  
+
+fa.parallel(wilbraham_mrh, n.iter = 10, fm = "pa", fa = "fa",
+            main = "Wilbraham and MRH Parallel Analysis Scree Plot (1287 Participants)")
+
+```
+
+### PCA (Principal Component Analysis)
+
+```{r}
+
+# Define a function to perform PCA on a dataset
+run_pca <- function(data, dataset_name) {
+  # Select only numeric columns
+  numeric_data <- select_if(data, is.numeric)
+  
+  # Perform PCA (center & scale for equal weighting)
+  pca_result <- prcomp(numeric_data, center = TRUE, scale. = TRUE)
+  
+  # Print summary of PCA
+  print(paste("PCA Summary for", dataset_name))
+  print(summary(pca_result))
+  
+  # Scree plot for variance explained
+  screeplot(pca_result, type = "lines", main = paste("Scree Plot:", dataset_name))
+  
+  # Biplot to visualize PCA components
+  biplot(pca_result, main = paste("PCA Biplot:", dataset_name))
+  
+  # Return PCA result
+  return(pca_result)
+}
+
+# Run PCA separately for each dataset
+pca_mile_tree <- run_pca(miletree_data_numeric, "Mile Tree")
+pca_stony_hill <- run_pca(stonyhill_data_numeric, "Stony Hill")
+# pca_soule_road <- run_pca(souleroad_data_numeric, "Soule Road")
+pca_wilbraham_middle <- run_pca(wm_data_numeric, "Wilbraham Middle")
+pca_mrh <- run_pca(mrh_data_numeric, "MRH")
+
+```
+
+Now, let's visualize % of variance explained for each PCA model
+
+```{r}
+
+barplot(pca_mile_tree$sdev^2 / sum(pca_mile_tree$sdev^2), 
+        main = "Mile Tree PCA Variance Explained", 
+        xlab = "Principal Components", 
+        ylab = "Proportion of Variance")
+
+
+barplot(pca_stony_hill$sdev^2 / sum(pca_stony_hill$sdev^2), 
+        main = "Stony Hill PCA Variance Explained", 
+        xlab = "Principal Components", 
+        ylab = "Proportion of Variance")
+
+
+barplot(pca_wilbraham_middle$sdev^2 / sum(pca_wilbraham_middle$sdev^2), 
+        main = "Wilbraham Middle PCA Variance Explained", 
+        xlab = "Principal Components", 
+        ylab = "Proportion of Variance")
+
+barplot(pca_mrh$sdev^2 / sum(pca_mrh$sdev^2), 
+        main = "MRH PCA Variance Explained", 
+        xlab = "Principal Components", 
+        ylab = "Proportion of Variance")
+
+
+```
