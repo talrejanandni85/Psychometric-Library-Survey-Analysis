@@ -91,7 +91,7 @@ I was brought in as a volunteer research analyst to turn that raw data into a re
 ### Parallel Analysis — Mile Tree + Stony Hill Combined (477 Participants)
 *Used to determine the number of factors to retain in EFA. Actual data eigenvalues drop below simulated data after Factor 1, confirming a 1-factor solution.*
 
-![Parallel Analysis Scree Plot](visuals/parallel_analysis_mile_stony.png)
+![Parallel Analysis Scree Plot](Visuals/PCA Scree Plot — Stony Hill School.png)
 
 ---
 
