@@ -72,36 +72,6 @@ I was brought in as a volunteer research analyst to turn that raw data into a re
 
 ---
 
-## 📊 Sample Visuals
-
-### Student Survey Response Distributions (Stony Hill School)
-*Likert-scale distributions for 4 core library engagement items*
-
-![Student Response Distributions](visuals/student_response_distributions.png)
-
----
-
-### Teacher Survey Response Distributions
-*Frequency and importance ratings across teacher survey items*
-
-![Teacher Response Distributions](visuals/teacher_response_distributions.png)
-
----
-
-### Parallel Analysis — Mile Tree + Stony Hill Combined (477 Participants)
-*Used to determine the number of factors to retain in EFA. Actual data eigenvalues drop below simulated data after Factor 1, confirming a 1-factor solution.*
-
-![Parallel Analysis Scree Plot](Visuals/PCA Scree Plot — Stony Hill School.png)
-
----
-
-### PCA Scree Plot — Stony Hill School
-*First principal component explains the majority of variance, consistent with EFA findings.*
-
-![PCA Scree Plot](visuals/scree_plot_stony_hill.png)
-
----
-
 ## ⚙️ How to Run
 
 1. Clone this repository
